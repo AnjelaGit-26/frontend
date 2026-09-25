@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useRef, use } from "react";
 import { AppShell } from "@/components/layout/AppShell";
 import { GraphCanvas, GraphCanvasRef } from "@/components/graph/GraphCanvas";
+import { Graph3D } from "@/components/graph/Graph3D";
 import { GraphControls } from "@/components/graph/GraphControls";
 import { WalletDetailPanel } from "@/components/panels/WalletDetailPanel";
 import { RiskBadge } from "@/components/case/RiskBadge";
@@ -22,6 +23,8 @@ export default function CaseWorkbenchPage({
   const [selectedNode, setSelectedNode] = useState<WalletNode | null>(null);
   const [selectedEdge, setSelectedEdge] = useState<TransferEdge | null>(null);
   const [showLabels, setShowLabels] = useState(true);
+  const [viewMode, setViewMode] = useState<"2D" | "3D">("2D");
+  const [activeLayerFilter, setActiveLayerFilter] = useState<number | string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -65,8 +68,14 @@ export default function CaseWorkbenchPage({
               onZoomOut={() => graphCanvasRef.current?.zoomOut()}
               onFit={() => graphCanvasRef.current?.fit()}
               onRelayout={() => graphCanvasRef.current?.relayout()}
+              onFocusSource={() => graphCanvasRef.current?.focusSource()}
+              onFocusDestination={() => graphCanvasRef.current?.focusDestination()}
               showLabels={showLabels}
               onToggleLabels={() => setShowLabels(!showLabels)}
+              viewMode={viewMode}
+              onToggleViewMode={(mode) => setViewMode(mode)}
+              activeLayerFilter={activeLayerFilter}
+              onLayerFilterChange={(layer) => setActiveLayerFilter(layer)}
             />
 
             <div className="glass-panel relative flex-1 min-h-0 overflow-hidden">
@@ -80,13 +89,38 @@ export default function CaseWorkbenchPage({
                   <ShieldAlert className="size-8" />
                   <p className="text-sm">No transaction path found for this case.</p>
                 </div>
+              ) : viewMode === "3D" ? (
+                <Graph3D
+                  ref={graphCanvasRef}
+                  nodes={traceData.nodes}
+                  edges={traceData.edges}
+                  suspectAddress={traceData.suspect_address}
+                  attribution={traceData.attribution}
+                  selectedNode={selectedNode}
+                  selectedEdge={selectedEdge}
+                  showLabels={showLabels}
+                  activeLayerFilter={activeLayerFilter}
+                  onSelectNode={(node) => {
+                    setSelectedNode(node);
+                    setSelectedEdge(null);
+                  }}
+                  onSelectEdge={(edge) => setSelectedEdge(edge)}
+                />
               ) : (
                 <GraphCanvas
                   ref={graphCanvasRef}
                   nodes={traceData.nodes}
                   edges={traceData.edges}
+                  suspectAddress={traceData.suspect_address}
+                  attribution={traceData.attribution}
+                  selectedNode={selectedNode}
+                  selectedEdge={selectedEdge}
                   showLabels={showLabels}
-                  onSelectNode={(node) => { setSelectedNode(node); setSelectedEdge(null); }}
+                  activeLayerFilter={activeLayerFilter}
+                  onSelectNode={(node) => {
+                    setSelectedNode(node);
+                    setSelectedEdge(null);
+                  }}
                   onSelectEdge={(edge) => setSelectedEdge(edge)}
                 />
               )}
@@ -117,11 +151,15 @@ export default function CaseWorkbenchPage({
                     <div className="grid grid-cols-2 gap-2">
                       <div>
                         <p className="text-[var(--muted-foreground)] mb-0.5">From</p>
-                        <p className="font-mono text-[var(--foreground)]">{selectedEdge.from.slice(0, 8)}…</p>
+                        <p className="font-mono text-[var(--foreground)]">
+                          {selectedEdge.from.slice(0, 8)}…
+                        </p>
                       </div>
                       <div>
                         <p className="text-[var(--muted-foreground)] mb-0.5">To</p>
-                        <p className="font-mono text-[var(--foreground)]">{selectedEdge.to.slice(0, 8)}…</p>
+                        <p className="font-mono text-[var(--foreground)]">
+                          {selectedEdge.to.slice(0, 8)}…
+                        </p>
                       </div>
                     </div>
                     <div className="flex items-center justify-between pt-2 border-t border-[color-mix(in_oklab,var(--border)_50%,transparent)]">

@@ -5,7 +5,7 @@ export function getCytoscapeStyles(showLabels: boolean = true): cytoscape.Styles
     {
       selector: "node",
       css: {
-        "background-color": "#2E6C3B",
+        "background-color": "data(color)" as unknown as string,
         label: showLabels ? "data(label)" : "",
         color: "#1E293B",
         "font-size": "11px",
@@ -13,37 +13,36 @@ export function getCytoscapeStyles(showLabels: boolean = true): cytoscape.Styles
         "font-weight": "bold",
         "text-valign": "bottom",
         "text-margin-y": 6,
-        width: 34,
-        height: 34,
-        "border-width": 3,
-        "border-color": "#FFFFFF",
-      },
-    },
-    {
-      selector: 'node[role = "burner"]',
-      css: {
-        "background-color": "#E11D48",
-        "border-color": "#FFFFFF",
-        "border-width": 3,
         width: 36,
         height: 36,
+        "border-width": 3,
+        "border-color": "#FFFFFF",
       },
     },
     {
-      selector: 'node[role = "vasp"]',
+      selector: "node[?isSource]",
       css: {
-        "background-color": "#2563EB",
-        "border-color": "#FFFFFF",
-        "border-width": 3.5,
+        "border-color": "#EF4444",
+        "border-width": 4,
+        width: 44,
+        height: 44,
+      },
+    },
+    {
+      selector: "node[?isDestination]",
+      css: {
+        "border-color": "#06B6D4",
+        "border-width": 4,
         width: 42,
         height: 42,
+        shape: "diamond",
       },
     },
     {
       selector: "node:selected",
       css: {
-        "border-width": 4,
-        "border-color": "#15803D",
+        "border-width": 5,
+        "border-color": "#38BDF8",
       },
     },
     {
@@ -78,8 +77,8 @@ export function getCytoscapeStyles(showLabels: boolean = true): cytoscape.Styles
     {
       selector: "edge:selected",
       css: {
-        "line-color": "#2E6C3B",
-        "target-arrow-color": "#1E4726",
+        "line-color": "#0EA5E9",
+        "target-arrow-color": "#0284C7",
         width: 4,
       },
     },

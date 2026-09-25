@@ -1,4 +1,4 @@
-import { createClient, User, Session, AuthError } from "@supabase/supabase-js";
+import { createClient, User, Session } from "@supabase/supabase-js";
 import { UserRole } from "./types";
 
 const supabaseUrl =

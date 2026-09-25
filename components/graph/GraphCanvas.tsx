@@ -1,32 +1,56 @@
 "use client";
 
-import React, { useEffect, useRef, useImperativeHandle, forwardRef } from "react";
+import React, { useEffect, useRef, useImperativeHandle, forwardRef, useMemo } from "react";
 import cytoscape from "cytoscape";
 import { getCytoscapeStyles } from "./graphStyles";
-import { WalletNode, TransferEdge } from "@/lib/types";
+import { WalletNode, TransferEdge, VASPAttribution } from "@/lib/types";
+import { computeNodeLayers } from "@/lib/graphLayerUtils";
+import { GraphLegend } from "./GraphLegend";
 
 export interface GraphCanvasRef {
   zoomIn: () => void;
   zoomOut: () => void;
   fit: () => void;
   relayout: () => void;
+  focusSource: () => void;
+  focusDestination: () => void;
 }
 
 interface GraphCanvasProps {
   nodes?: WalletNode[];
   edges?: TransferEdge[];
+  suspectAddress?: string;
+  attribution?: VASPAttribution | null;
   onSelectNode?: (node: WalletNode | null) => void;
   onSelectEdge?: (edge: TransferEdge | null) => void;
+  selectedNode?: WalletNode | null;
+  selectedEdge?: TransferEdge | null;
   showLabels?: boolean;
+  activeLayerFilter?: number | string | null;
 }
 
 export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(function GraphCanvas(
-  { nodes = [], edges = [], onSelectNode, onSelectEdge, showLabels = true },
+  {
+    nodes = [],
+    edges = [],
+    suspectAddress,
+    attribution,
+    onSelectNode,
+    onSelectEdge,
+    showLabels = true,
+    activeLayerFilter = null,
+  },
   ref
 ) {
   const containerRef = useRef<HTMLDivElement>(null);
   const cyRef = useRef<cytoscape.Core | null>(null);
 
+  // Compute graph layer hierarchy
+  const layerMap = useMemo(() => {
+    return computeNodeLayers(nodes, edges, suspectAddress, attribution);
+  }, [nodes, edges, suspectAddress, attribution]);
+
+  // Imperative handle for controls
   useImperativeHandle(ref, () => ({
     zoomIn: () => {
       if (cyRef.current) {
@@ -48,10 +72,33 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(function
         const layout = cyRef.current.layout({
           name: "breadthfirst",
           directed: true,
-          padding: 30,
-          spacingFactor: 1.25,
+          padding: 40,
+          spacingFactor: 1.3,
         });
         layout.run();
+      }
+    },
+    focusSource: () => {
+      if (!cyRef.current) return;
+      let sourceElem = cyRef.current.nodes('[?isSource]');
+      if (sourceElem.length === 0) sourceElem = cyRef.current.nodes().first();
+      if (sourceElem.length > 0) {
+        cyRef.current.animate({
+          center: { eles: sourceElem },
+          zoom: 1.5,
+          duration: 600,
+        });
+      }
+    },
+    focusDestination: () => {
+      if (!cyRef.current) return;
+      const destElem = cyRef.current.nodes('[?isDestination]');
+      if (destElem.length > 0) {
+        cyRef.current.animate({
+          center: { eles: destElem.first() },
+          zoom: 1.5,
+          duration: 600,
+        });
       }
     },
   }));
@@ -59,13 +106,29 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(function
   useEffect(() => {
     if (!containerRef.current) return;
 
-    // Helper to calculate edge line width based on transaction value
     const maxEdgeVal = Math.max(...edges.map((e) => e.value), 1);
 
+    // Filter nodes by active layer if set
+    const filteredNodes = nodes.filter((n) => {
+      if (activeLayerFilter === null || activeLayerFilter === "all") return true;
+      const info = layerMap.get(n.address);
+      if (!info) return true;
+      if (activeLayerFilter === "5+") return (info.layer ?? 99) >= 5;
+      if (activeLayerFilter === "unavailable") return info.layer === null;
+      return info.layer === Number(activeLayerFilter);
+    });
+
+    const filteredNodeAddresses = new Set(filteredNodes.map((n) => n.address.toLowerCase()));
+
+    const filteredEdges = edges.filter(
+      (e) =>
+        filteredNodeAddresses.has(e.from.toLowerCase()) &&
+        filteredNodeAddresses.has(e.to.toLowerCase())
+    );
+
     const elements: cytoscape.ElementDefinition[] = [
-      ...nodes.map((n) => {
-        const isBurner = n.typologyFlags.length > 0;
-        const role = n.isVasp ? "vasp" : isBurner ? "burner" : "default";
+      ...filteredNodes.map((n) => {
+        const info = layerMap.get(n.address);
         const truncated =
           n.address.length > 8
             ? `${n.address.slice(0, 4)}...${n.address.slice(-4)}`
@@ -74,12 +137,16 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(function
           data: {
             id: n.address,
             label: truncated,
-            role: role,
+            color: info?.color || "#64748B",
+            isSource: info?.isSource || false,
+            isDestination: info?.isDestination || false,
+            layer: info?.layer,
+            layerLabel: info?.layerLabel || "Layer Unavailable",
             nodeObj: n,
           },
         };
       }),
-      ...edges.map((e) => {
+      ...filteredEdges.map((e) => {
         const thickness = Math.min(Math.max(2, (e.value / maxEdgeVal) * 6), 6);
         const isSuspicious = e.value > 10000 || e.token === "USDT";
         return {
@@ -103,8 +170,8 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(function
       layout: {
         name: "breadthfirst",
         directed: true,
-        padding: 30,
-        spacingFactor: 1.25,
+        padding: 40,
+        spacingFactor: 1.3,
       },
     });
 
@@ -130,14 +197,20 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(function
     return () => {
       cyRef.current?.destroy();
     };
-  }, [nodes, edges, showLabels, onSelectNode, onSelectEdge]);
+  }, [nodes, edges, layerMap, showLabels, activeLayerFilter, onSelectNode, onSelectEdge]);
 
   return (
     <div className="relative w-full h-full min-h-[420px] bg-white/40 backdrop-blur-md rounded-2xl select-none overflow-hidden">
       <div ref={containerRef} className="w-full h-full min-h-[420px]" />
+
+      {/* Dynamic Graph Legend Overlay */}
+      {nodes.length > 0 && (
+        <GraphLegend layerMap={layerMap} nodeCount={nodes.length} edgeCount={edges.length} />
+      )}
+
       {nodes.length === 0 && (
         <div className="absolute inset-0 flex items-center justify-center text-[var(--muted-foreground)] font-mono text-xs">
-          No Graph Topology Loaded
+          No Graph Data Available
         </div>
       )}
     </div>
