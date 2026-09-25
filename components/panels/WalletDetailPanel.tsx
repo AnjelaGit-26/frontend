@@ -64,9 +64,20 @@ export function WalletDetailPanel({ node, edges = [], attribution = null, caseId
       {/* Metadata grid */}
       <div className="grid grid-cols-2 gap-3 p-3 rounded-xl bg-white/40 border border-[color-mix(in_oklab,var(--border)_40%,transparent)]">
         <InfoRow label="Chain" value={<span className="uppercase">{node.chain}</span>} />
-        <InfoRow label="Balance" value={`${node.balance.toLocaleString()} ${node.chain === "tron" ? "TRX" : "SOL"}`} />
+        <InfoRow
+          label="Balance"
+          value={`${node.balance.toLocaleString()} ${
+            node.chain === "tron" ? "TRX" : node.chain === "ethereum" ? "ETH" : node.chain === "bitcoin" ? "BTC" : "SOL"
+          }`}
+        />
         <InfoRow label="Risk Score" value={`${node.riskScore}/100`} />
         <InfoRow label="First Seen" value={new Date(node.firstSeen).toLocaleDateString("en-IN")} />
+        {node.gnn_risk_score != null && (
+          <InfoRow label="GraphSAGE GNN Score" value={`${node.gnn_risk_score}/100`} />
+        )}
+        {node.anomaly_score != null && (
+          <InfoRow label="ML Anomaly Score" value={node.anomaly_score.toFixed(2)} />
+        )}
       </div>
 
       {/* Typology flags */}

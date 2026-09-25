@@ -35,20 +35,21 @@ export default function DashboardPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  const activeCount = cases.filter((c) => c.status === "active" || c.status === "pending_approval").length;
+  const activeCount = cases.filter((c) => c.status !== "closed" && c.status !== "failed").length;
   const highRiskCount = cases.filter((c) => c.overall_risk_score >= 75).length;
-  const pendingApprovalCount = cases.filter((c) => c.status === "pending_approval").length;
-  const vaspAttributedCount = cases.filter((c) => Boolean(c.attributed_vasp_name)).length;
+  const pendingApprovalCount = cases.filter((c) => c.status?.toLowerCase().includes("pending")).length;
+  const vaspAttributedCount = cases.filter((c) => Boolean(c.attributed_vasp_name || c.attributed_vasp)).length;
 
   const filteredCases = cases.filter((c) => {
     if (chainFilter !== "all" && c.chain !== chainFilter) return false;
-    if (supervisorOnlyPending && c.status !== "pending_approval") return false;
+    if (supervisorOnlyPending && !c.status?.toLowerCase().includes("pending")) return false;
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       if (
         !c.case_id.toLowerCase().includes(q) &&
         !c.suspect_address.toLowerCase().includes(q) &&
-        !c.attributed_vasp_name?.toLowerCase().includes(q)
+        !c.attributed_vasp_name?.toLowerCase().includes(q) &&
+        !c.attributed_vasp?.toLowerCase().includes(q)
       ) return false;
     }
     return true;
@@ -157,7 +158,7 @@ export default function DashboardPage() {
           {/* Chain filter */}
           <div className="flex items-center gap-1">
             <Filter className="size-4 text-[var(--muted-foreground)] mr-1" />
-            {(["all", "tron", "solana", "ethereum"] as const).map((chain) => (
+            {(["all", "tron", "solana", "ethereum", "bitcoin"] as const).map((chain) => (
               <button
                 key={chain}
                 type="button"

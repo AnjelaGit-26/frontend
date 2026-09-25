@@ -1,10 +1,10 @@
-export type Chain = "tron" | "solana" | "ethereum";
+export type Chain = "tron" | "solana" | "ethereum" | "bitcoin";
 
 export interface TraceRequest {
   suspect_address: string;
   chain: Chain;
-  max_hops: number;
-  value_threshold_pct: number;
+  max_hops?: number;
+  value_threshold_pct?: number;
   complaint_id?: string;
 }
 
@@ -15,7 +15,9 @@ export interface WalletNode {
   balance: number;
   firstSeen: string;
   typologyFlags: TypologyFlag[];
-  isVasp?: boolean;
+  isVasp?: boolean | null;
+  gnn_risk_score?: number | null;
+  anomaly_score?: number | null;
 }
 
 export type TypologyFlag =
@@ -23,7 +25,11 @@ export type TypologyFlag =
   | "fan_out"
   | "zero_gas_burner"
   | "first_funder_match"
-  | "dex_swap";
+  | "dex_swap"
+  | "ofac_sanctioned"
+  | "bridge_hop"
+  | "coinjoin_mixer"
+  | "burner_wallet";
 
 export interface TransferEdge {
   txHash: string;
@@ -41,19 +47,35 @@ export interface VASPAttribution {
   deposit_address: string;
   hot_wallet_address: string;
   nodal_officer_email: string;
-  nodal_officer_phone?: string;
+  nodal_officer_phone?: string | null;
 }
 
 export interface TraceResult {
   case_id: string;
   suspect_address: string;
+  chain: Chain;
   nodes: WalletNode[];
   edges: TransferEdge[];
   attribution: VASPAttribution | null;
   overall_risk_score: number;
+  created_at: string;
+  status: string;
+  recommendations?: string[];
+  sla_cashout_alert?: string | null;
+}
+
+export interface ParsedComplaintResponse {
+  suspect_wallet_address: string | null;
+  blockchain_type: Chain | string | null;
+  max_trace_hops: number | null;
+  estimated_loss_inr: number | null;
+  summary: string | null;
+  confidence: string | null;
+  raw_model_output: string | null;
+  // Mapped/adapted properties for convenience
+  suspect_address?: string;
   chain?: Chain;
-  created_at?: string;
-  status?: "active" | "pending_approval" | "frozen" | "closed";
+  max_hops?: number;
 }
 
 export interface LegalNoticePayload {
@@ -63,6 +85,16 @@ export interface LegalNoticePayload {
   loss_amount_inr: number;
   flow_summary: string;
   sha256_evidence_hash: string;
+}
+
+export interface NoticeGenerateResponse {
+  notice_ref: string;
+  pdf_url: string;
+  pdfUrl?: string; // Mapped camelCase alias
+  sha256_evidence_hash: string;
+  vasp_name: string;
+  case_number: string;
+  is_fiu_registered: boolean;
 }
 
 export type UserRole =
@@ -75,7 +107,11 @@ export interface CaseSummary {
   suspect_address: string;
   chain: Chain;
   overall_risk_score: number;
-  status: "active" | "pending_approval" | "frozen" | "closed";
+  status: string;
   created_at: string;
-  attributed_vasp_name?: string;
+  node_count?: number;
+  edge_count?: number;
+  attributed_vasp?: string | null;
+  attributed_vasp_name?: string | null;
 }
+

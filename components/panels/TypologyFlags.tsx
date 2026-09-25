@@ -22,7 +22,7 @@ const TYPOLOGY_CONFIG: Record<TypologyFlag, { title: string; icon: React.Element
     explanation: "Fresh wallet with zero native gas balance used exclusively for temporary scam fund routing.",
   },
   fan_out: {
-    title: "Fan-Out: 12 Wallets",
+    title: "Fan-Out Analysis",
     icon: Share2,
     color: "text-[var(--amber)] bg-[color-mix(in_oklab,var(--amber)_8%,transparent)] border-[color-mix(in_oklab,var(--amber)_25%,transparent)]",
     explanation: "Large funds split rapidly across multiple sub-wallets to bypass detection thresholds.",
@@ -38,6 +38,30 @@ const TYPOLOGY_CONFIG: Record<TypologyFlag, { title: string; icon: React.Element
     icon: Repeat,
     color: "text-blue-600 bg-blue-50 border-blue-200",
     explanation: "Automated liquidity pool swap transaction on a decentralised exchange protocol.",
+  },
+  ofac_sanctioned: {
+    title: "OFAC Sanctioned Entity",
+    icon: Info,
+    color: "text-red-700 bg-red-100 border-red-300",
+    explanation: "Wallet address flagged on US Treasury OFAC SDN sanctions list.",
+  },
+  bridge_hop: {
+    title: "Cross-Chain Bridge Hop",
+    icon: Share2,
+    color: "text-indigo-600 bg-indigo-50 border-indigo-200",
+    explanation: "Funds moved across blockchains via decentralized bridge protocol.",
+  },
+  coinjoin_mixer: {
+    title: "CoinJoin / Tumbler Mixer",
+    icon: Layers,
+    color: "text-orange-700 bg-orange-50 border-orange-200",
+    explanation: "Privacy mixer transaction designed to obscure money trail.",
+  },
+  burner_wallet: {
+    title: "Disposable Burner Wallet",
+    icon: Flame,
+    color: "text-amber-700 bg-amber-50 border-amber-200",
+    explanation: "Single-use wallet discarded immediately after transaction execution.",
   },
 };
 

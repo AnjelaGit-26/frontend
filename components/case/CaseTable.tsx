@@ -21,6 +21,7 @@ const chainMap: Record<string, string> = {
   tron: "bg-red-50 text-red-600 border-red-200",
   solana: "bg-purple-50 text-purple-600 border-purple-200",
   ethereum: "bg-blue-50 text-blue-600 border-blue-200",
+  bitcoin: "bg-amber-50 text-amber-700 border-amber-200",
 };
 
 function riskColor(score: number) {
@@ -71,14 +72,22 @@ export function CaseTable({ cases, loading = false }: CaseTableProps) {
           </thead>
           <tbody>
             {sorted.map((c) => {
-              const st = statusMap[c.status] ?? statusMap.active;
+              const stKey = (c.status || "active").toLowerCase() as keyof typeof statusMap;
+              const st = statusMap[stKey] ?? {
+                label: c.status || "Active",
+                icon: Clock,
+                bg: "bg-[color-mix(in_oklab,var(--primary)_10%,transparent)]",
+                text: "text-[var(--primary)]",
+                border: "border-[color-mix(in_oklab,var(--primary)_30%,transparent)]",
+              };
               const StatusIcon = st.icon;
               const chainStyle = chainMap[c.chain] ?? "bg-gray-50 text-gray-600 border-gray-200";
+              const targetVasp = c.attributed_vasp_name || c.attributed_vasp;
 
               return (
                 <tr
                   key={c.case_id}
-                  onClick={() => router.push(`/case/${c.case_id}`)}
+                  onClick={() => router.push(`/case/${encodeURIComponent(c.case_id)}`)}
                   className="group cursor-pointer border-b border-[color-mix(in_oklab,var(--border)_30%,transparent)] hover:bg-white/40 transition-colors last:border-0"
                 >
                   <td className="px-4 py-3 font-mono text-sm font-semibold text-[var(--foreground)]">
@@ -105,10 +114,10 @@ export function CaseTable({ cases, loading = false }: CaseTableProps) {
                     </span>
                   </td>
                   <td className="px-4 py-3 text-sm">
-                    {c.attributed_vasp_name ? (
+                    {targetVasp ? (
                       <span className="flex items-center gap-1.5 text-[var(--primary)] font-medium">
                         <ShieldCheck className="size-3.5 shrink-0" />
-                        {c.attributed_vasp_name}
+                        {targetVasp}
                       </span>
                     ) : (
                       <span className="text-[var(--muted-foreground)] text-xs italic">Unattributed</span>

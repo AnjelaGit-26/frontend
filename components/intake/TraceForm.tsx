@@ -43,6 +43,8 @@ export function TraceForm() {
   } | null>(null);
   const [loading, setLoading] = useState(false);
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
+  const [parseError, setParseError] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const { register, handleSubmit, setValue, getValues, formState: { errors } } = useForm<FormInputs>({
     defaultValues: { suspect_address: "", chain: "tron", max_hops: 5, value_threshold_pct: 2.0, complaint_id: "" },
@@ -52,19 +54,37 @@ export function TraceForm() {
     const rawText = getValues("complaint_text");
     if (!rawText?.trim()) return;
     setIsParsing(true);
+    setParseError(null);
     try {
       const result = await parseFir(rawText);
-      const addr = result.suspect_address || "TABC1234567890XYZ99887766554433";
-      const chain = result.chain || "tron";
-      setValue("suspect_address", addr);
-      setValue("chain", chain);
-      setParsedData({ address: addr, chain, scamType: "Part-Time Task Scam (Telegram Cyber Fraud)", amountInr: 485000 });
-    } catch (err) { console.error(err); }
-    finally { setIsParsing(false); }
+      const extractedAddr = result.suspect_address || result.suspect_wallet_address;
+      if (extractedAddr) {
+        const chain = (result.chain || result.blockchain_type || "tron") as Chain;
+        setValue("suspect_address", extractedAddr);
+        setValue("chain", chain);
+        if (result.max_hops) setValue("max_hops", result.max_hops);
+        setParsedData({
+          address: extractedAddr,
+          chain,
+          scamType: result.summary || "Extracted Scam Narrative",
+          amountInr: result.estimated_loss_inr ?? 0,
+        });
+      } else {
+        setParseError("Could not extract a valid suspect wallet address from the complaint text. Please enter the wallet address manually.");
+        setParsedData(null);
+      }
+    } catch (err: unknown) {
+      console.error(err);
+      setParseError((err as Error).message || "Failed to parse FIR complaint narrative.");
+      setParsedData(null);
+    } finally {
+      setIsParsing(false);
+    }
   };
 
   const onSubmit = async (data: FormInputs) => {
     setLoading(true);
+    setSubmitError(null);
     setCurrentStepIndex(0);
     const stepInterval = setInterval(() => {
       setCurrentStepIndex((prev) => {
@@ -79,12 +99,17 @@ export function TraceForm() {
         chain: data.chain,
         max_hops: Number(data.max_hops),
         value_threshold_pct: Number(data.value_threshold_pct || 2.0),
-        complaint_id: data.complaint_id,
+        complaint_id: data.complaint_id || undefined,
       };
-      await new Promise((res) => setTimeout(res, 1800));
       const result = await createTrace(payload);
-      router.push(`/case/${result.case_id}`);
-    } catch (err) { console.error(err); setLoading(false); }
+      router.push(`/case/${encodeURIComponent(result.case_id)}`);
+    } catch (err: unknown) {
+      console.error(err);
+      setSubmitError((err as Error).message || "Failed to execute trace investigation.");
+      setLoading(false);
+    } finally {
+      clearInterval(stepInterval);
+    }
   };
 
   return (
@@ -114,6 +139,12 @@ export function TraceForm() {
 
       {/* Form panel */}
       <div className="glass-panel p-6 space-y-5">
+        {submitError && (
+          <div className="rounded-xl border border-[var(--destructive)] bg-[color-mix(in_oklab,var(--destructive)_10%,transparent)] p-3 text-xs text-[var(--destructive)] font-semibold">
+            {submitError}
+          </div>
+        )}
+
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
           {tab === "address" ? (
             <div className="space-y-1.5">
@@ -152,6 +183,11 @@ export function TraceForm() {
                   {isParsing ? "Parsing with Gemini AI…" : "Parse FIR with Gemini AI"}
                 </button>
               </div>
+              {parseError && (
+                <div className="rounded-xl border border-[var(--amber)] bg-[color-mix(in_oklab,var(--amber)_10%,transparent)] p-3 text-xs text-[var(--amber)] font-semibold">
+                  {parseError}
+                </div>
+              )}
               {parsedData && (
                 <FirParserPreview
                   extractedAddress={getValues("suspect_address") || parsedData.address}
@@ -177,6 +213,7 @@ export function TraceForm() {
                 <option value="tron">TRON (TRC-20 USDT)</option>
                 <option value="solana">SOLANA (SPL Token)</option>
                 <option value="ethereum">ETHEREUM (ERC-20)</option>
+                <option value="bitcoin">BITCOIN (BTC)</option>
               </select>
             </div>
             <div className="space-y-1.5">

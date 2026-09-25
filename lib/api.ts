@@ -1,5 +1,6 @@
 import {
   CaseSummary,
+  Chain,
   LegalNoticePayload,
   TraceRequest,
   TraceResult,
@@ -7,8 +8,7 @@ import {
   WalletNode,
   TransferEdge,
 } from "./types";
-
-const USE_MOCK_DATA = process.env.NEXT_PUBLIC_USE_MOCK_DATA !== "false";
+const USE_MOCK_DATA = process.env.NEXT_PUBLIC_USE_MOCK_DATA === "true";
 
 // 12-Node Realistic TRON Crypto-Fraud Investigation Mock Graph
 const MOCK_NODES: WalletNode[] = [
@@ -290,6 +290,11 @@ export const MOCK_CASES: CaseSummary[] = [
   },
 ];
 
+import {
+  ParsedComplaintResponse,
+  NoticeGenerateResponse,
+} from "./types";
+
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL || "https://chain-sleuth-backend.onrender.com/api/v1").replace(/\/+$/, "");
 
 export async function createTrace(req: TraceRequest): Promise<TraceResult> {
@@ -301,25 +306,24 @@ export async function createTrace(req: TraceRequest): Promise<TraceResult> {
     });
   }
 
-  try {
-    const res = await fetch(`${API_BASE}/trace`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(req),
-    });
+  const res = await fetch(`${API_BASE}/trace/`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      suspect_address: req.suspect_address,
+      chain: req.chain,
+      max_hops: req.max_hops ?? 5,
+      value_threshold_pct: req.value_threshold_pct ?? 2.0,
+      complaint_id: req.complaint_id || null,
+    }),
+  });
 
-    if (res.ok) {
-      return await res.json();
-    }
-  } catch (err) {
-    console.warn("Backend trace request failed, falling back to mock data:", err);
+  if (!res.ok) {
+    const errorText = await res.text();
+    throw new Error(`Trace API error (${res.status}): ${errorText}`);
   }
 
-  return {
-    ...MOCK_TRACE_RESULT,
-    suspect_address: req.suspect_address || MOCK_TRACE_RESULT.suspect_address,
-    chain: req.chain || MOCK_TRACE_RESULT.chain,
-  };
+  return await res.json();
 }
 
 export async function getCase(caseId: string): Promise<TraceResult> {
@@ -330,106 +334,109 @@ export async function getCase(caseId: string): Promise<TraceResult> {
     });
   }
 
-  try {
-    const res = await fetch(`${API_BASE}/cases/${caseId}`);
+  const res = await fetch(`${API_BASE}/cases/${encodeURIComponent(caseId)}`);
 
-    if (res.ok) {
-      return await res.json();
-    }
-  } catch (err) {
-    console.warn(`Backend fetch for case ${caseId} failed, falling back to mock data:`, err);
+  if (!res.ok) {
+    const errorText = await res.text();
+    throw new Error(`Get Case API error (${res.status}): ${errorText}`);
   }
 
-  return {
-    ...MOCK_TRACE_RESULT,
-    case_id: caseId,
-  };
+  return await res.json();
 }
 
-export async function getCases(): Promise<CaseSummary[]> {
+export async function getCases(skip: number = 0, limit: number = 20): Promise<CaseSummary[]> {
   if (USE_MOCK_DATA) {
     return Promise.resolve(MOCK_CASES);
   }
 
-  try {
-    const res = await fetch(`${API_BASE}/cases`);
+  const res = await fetch(`${API_BASE}/cases/?skip=${skip}&limit=${limit}`);
 
-    if (res.ok) {
-      const data = await res.json();
-      if (Array.isArray(data)) return data;
-      if (data && Array.isArray(data.cases)) return data.cases;
-    }
-  } catch (err) {
-    console.warn("Backend fetch cases failed, falling back to mock data:", err);
+  if (!res.ok) {
+    const errorText = await res.text();
+    throw new Error(`Get Cases API error (${res.status}): ${errorText}`);
   }
 
-  return MOCK_CASES;
+  const data = await res.json();
+  if (Array.isArray(data)) return data;
+  if (data && typeof data === "object" && Array.isArray((data as Record<string, unknown>).cases)) {
+    return (data as Record<string, unknown>).cases as CaseSummary[];
+  }
+  return [];
 }
 
-export async function parseFir(complaintText: string): Promise<Partial<TraceRequest>> {
+export async function parseFir(complaintText: string): Promise<ParsedComplaintResponse> {
   if (USE_MOCK_DATA) {
     return Promise.resolve({
+      suspect_wallet_address: "TABC1234567890XYZ99887766554433",
+      blockchain_type: "tron",
+      max_trace_hops: 5,
+      estimated_loss_inr: 485000,
+      summary: "Victim complaint describing Telegram part-time job crypto scam",
+      confidence: "high",
+      raw_model_output: null,
       suspect_address: "TABC1234567890XYZ99887766554433",
       chain: "tron",
       max_hops: 5,
-      value_threshold_pct: 2.0,
-      complaint_id: "FIR-2026-DELHI-402",
     });
   }
 
-  try {
-    const res = await fetch(`${API_BASE}/fir/parse`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ complaintText, text: complaintText }),
-    });
+  const res = await fetch(`${API_BASE}/fir/parse`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ complaintText, complaint_text: complaintText }),
+  });
 
-    if (res.ok) {
-      return await res.json();
-    }
-  } catch (err) {
-    console.warn("FIR parse API failed, falling back to mock parser:", err);
+  if (!res.ok) {
+    const errorText = await res.text();
+    throw new Error(`FIR Parse API error (${res.status}): ${errorText}`);
   }
 
+  const backendData: ParsedComplaintResponse = await res.json();
+
+  // Map backend response fields explicitly to frontend expectations
   return {
-    suspect_address: "TABC1234567890XYZ99887766554433",
-    chain: "tron",
-    max_hops: 5,
-    value_threshold_pct: 2.0,
-    complaint_id: "FIR-2026-DELHI-402",
+    ...backendData,
+    suspect_address: backendData.suspect_wallet_address || undefined,
+    chain: (backendData.blockchain_type as Chain) || undefined,
+    max_hops: backendData.max_trace_hops || undefined,
   };
 }
 
 export async function generateNotice(
   payload: LegalNoticePayload
-): Promise<{ pdfUrl: string; sha256_evidence_hash: string }> {
+): Promise<NoticeGenerateResponse> {
   if (USE_MOCK_DATA) {
     return Promise.resolve({
+      notice_ref: "NOTICE-CS2026-001",
+      pdf_url: "#mock-pdf-url",
       pdfUrl: "#mock-pdf-url",
       sha256_evidence_hash: payload.sha256_evidence_hash || "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      vasp_name: payload.attributed_vasp?.vasp_name || "CoinDCX",
+      case_number: payload.case_number,
+      is_fiu_registered: payload.attributed_vasp?.is_fiu_registered ?? true,
     });
   }
 
-  try {
-    const res = await fetch(`${API_BASE}/notice/generate`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
+  const res = await fetch(`${API_BASE}/notices/generate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
 
-    if (res.ok) {
-      return await res.json();
-    }
-  } catch (err) {
-    console.warn("Legal notice generation API failed, using fallback:", err);
+  if (!res.ok) {
+    const errorText = await res.text();
+    throw new Error(`Notice Generation API error (${res.status}): ${errorText}`);
   }
 
+  const data: NoticeGenerateResponse = await res.json();
+  const rawRecord = data as unknown as Record<string, unknown>;
   return {
-    pdfUrl: "#mock-pdf-url",
-    sha256_evidence_hash: payload.sha256_evidence_hash || "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    ...data,
+    pdfUrl: data.pdf_url || (typeof rawRecord.pdfUrl === "string" ? rawRecord.pdfUrl : undefined),
   };
 }
 
 export const runTrace = createTrace;
 export const fetchCase = getCase;
 export const fetchCases = getCases;
+

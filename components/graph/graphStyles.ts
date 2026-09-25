@@ -59,7 +59,7 @@ export function getCytoscapeStyles(showLabels: boolean = true): cytoscape.Styles
         "font-size": "9.5px",
         color: "#334155",
         "font-family": "JetBrains Mono, monospace",
-        "font-weight": "600",
+        "font-weight": "bold",
         "text-background-color": "#FFFFFF",
         "text-background-opacity": 0.92,
         "text-background-padding": "3px",
